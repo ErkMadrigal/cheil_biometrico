@@ -1,0 +1,376 @@
+<ion-content [fullscreen]="true" class="bg">
+  <div class="glow"></div>
+
+  <div class="shell">
+    <header class="brand">
+      <div class="brand__badge">
+        <ion-icon name="finger-print-outline"></ion-icon>
+      </div>
+      <div class="brand__text">
+        <p class="brand__title">Cheil · Checador</p>
+        <p class="brand__subtitle">Registro biometrico desde tu telefono</p>
+      </div>
+      <button type="button" class="theme-toggle" (click)="themeSvc.toggle()" [attr.aria-label]="'Cambiar a tema ' + (themeSvc.mode() === 'dark' ? 'claro' : 'oscuro')">
+        <ion-icon [name]="themeSvc.mode() === 'dark' ? 'sunny-outline' : 'moon-outline'"></ion-icon>
+      </button>
+    </header>
+
+    <div class="steps">
+      <div class="step" [class.step--active]="step() === 'identify'" [class.step--done]="step() !== 'identify'">
+        <span class="step__dot"><ion-icon name="id-card-outline"></ion-icon></span>
+        <span class="step__label">Tu</span>
+      </div>
+      <span class="step__line" [class.step__line--done]="['confirm','enrollCapture','enrollVerify','location','camera','success'].includes(step())"></span>
+
+      <div class="step" [class.step--active]="step() === 'confirm'" [class.step--done]="['enrollCapture','enrollVerify','location','camera','success'].includes(step())">
+        <span class="step__dot"><ion-icon name="person-circle-outline"></ion-icon></span>
+        <span class="step__label">Confirma</span>
+      </div>
+      <span class="step__line" [class.step__line--done]="['location','camera','success'].includes(step())"></span>
+
+      <div class="step" [class.step--active]="step() === 'location'" [class.step--done]="['camera','success'].includes(step())">
+        <span class="step__dot"><ion-icon name="location-outline"></ion-icon></span>
+        <span class="step__label">Ubicacion</span>
+      </div>
+      <span class="step__line" [class.step__line--done]="['camera','success'].includes(step())"></span>
+
+      <div class="step" [class.step--active]="step() === 'camera'" [class.step--done]="step() === 'success'">
+        <span class="step__dot"><ion-icon name="camera-outline"></ion-icon></span>
+        <span class="step__label">Listo</span>
+      </div>
+    </div>
+
+    <section class="card">
+      <!-- Paso 1: identificar -->
+      <div class="step-enter" *ngIf="step() === 'identify'">
+        <div class="icon-circle">
+          <ion-icon name="id-card-outline"></ion-icon>
+        </div>
+        <h1 class="title">¿Quien eres?</h1>
+        <p class="subtitle">Escribe tu numero de empleado, CURP o RFC</p>
+
+        <ion-input
+          class="input"
+          fill="outline"
+          placeholder="EMP-0001"
+          [ngModel]="query()"
+          (ngModelChange)="query.set($event)"
+          (keyup.enter)="onLookup()"
+          [disabled]="lookupLoading()"
+        ></ion-input>
+
+        <p class="error" *ngIf="lookupError()">{{ lookupError() }}</p>
+
+        <ion-button expand="block" class="btn-primary" (click)="onLookup()" [disabled]="lookupLoading() || !query().trim()">
+          <ion-spinner name="dots" *ngIf="lookupLoading()"></ion-spinner>
+          <span *ngIf="!lookupLoading()">Buscar</span>
+        </ion-button>
+      </div>
+
+      <!-- Paso 2: confirmar identidad -->
+      <div class="step-enter" *ngIf="step() === 'confirm' && employee() as emp">
+        <div class="avatar">
+          <img *ngIf="photoUrl()" [src]="photoUrl()" alt="" />
+          <ion-icon *ngIf="!photoUrl()" name="person-circle-outline"></ion-icon>
+        </div>
+        <h1 class="title">{{ fullName() }}</h1>
+        <p class="chip">#{{ emp.employee_number }}</p>
+        <p class="subtitle" *ngIf="emp.position">{{ emp.position }}</p>
+
+        <div class="banner banner--warn" *ngIf="!emp.has_face_enrolled">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>Es tu primera vez en la app. Antes de checar vamos a enrolar tu rostro (toma 2 fotos, medio minuto).</span>
+        </div>
+
+        <div class="btn-row">
+          <ion-button expand="block" fill="outline" class="btn-outline" (click)="notMe()">
+            <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+            No soy yo
+          </ion-button>
+          <ion-button expand="block" class="btn-primary" (click)="confirmAndContinue()">
+            <ng-container *ngIf="emp.has_face_enrolled">Si, soy yo</ng-container>
+            <ng-container *ngIf="!emp.has_face_enrolled">
+              <ion-icon slot="start" name="finger-print-outline"></ion-icon>
+              Enrolar mi rostro
+            </ng-container>
+          </ion-button>
+        </div>
+
+        <button
+          type="button"
+          class="link-btn"
+          *ngIf="emp.has_face_enrolled"
+          (click)="goToHomeLocation()"
+        >
+          <ion-icon name="location-outline"></ion-icon>
+          Ajustar mi ubicacion Home Office
+        </button>
+      </div>
+
+      <!-- Home Office paso 1: verificacion facial (una sola captura) -->
+      <div class="step-enter" *ngIf="step() === 'homeVerify'">
+        <h1 class="title">Confirma que eres tu</h1>
+        <p class="subtitle">Antes de guardar tu ubicacion, verifiquemos tu rostro.</p>
+        <ng-container>
+          <p class="subtitle" *ngIf="faceStage() === 'loadingModels'">Cargando reconocimiento facial...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'requestingCamera'">Activando camara...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'scanning' && !faceDetected()">Centra tu cara en el circulo</p>
+          <p class="subtitle subtitle--ok" *ngIf="faceStage() === 'scanning' && faceDetected()">Listo, quedate quieto</p>
+          <p class="error" *ngIf="faceStage() === 'error'">{{ faceError() }}</p>
+        </ng-container>
+
+        <div class="camera-frame" [class.camera-frame--ok]="faceDetected()">
+          <span class="camera-frame__ring"></span>
+          <video #videoEl playsinline muted autoplay></video>
+          <canvas #canvasEl></canvas>
+          <ion-spinner name="crescent" *ngIf="faceStage() === 'loadingModels' || faceStage() === 'requestingCamera'"></ion-spinner>
+        </div>
+
+        <p class="error" *ngIf="homeError()">{{ homeError() }}</p>
+
+        <div class="btn-row">
+          <ion-button expand="block" fill="outline" class="btn-outline" (click)="backToConfirmFromHome()">
+            <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+            Cancelar
+          </ion-button>
+          <ion-button
+            expand="block"
+            class="btn-primary"
+            (click)="captureForHomeVerify()"
+            [disabled]="faceStage() !== 'scanning' || !faceDetected()"
+          >
+            <ion-icon slot="start" name="finger-print-outline"></ion-icon>
+            Verificar
+          </ion-button>
+        </div>
+      </div>
+
+      <!-- Home Office paso 2: captura de GPS + guardado -->
+      <div class="step-enter" *ngIf="step() === 'homeCapture'">
+        <ng-container *ngIf="homeSubmitting()">
+          <div class="icon-circle icon-circle--brand icon-circle--pulse">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+          <h1 class="title">Ubicandote...</h1>
+          <p class="subtitle">Estamos leyendo tu GPS para guardar tu Home Office.</p>
+        </ng-container>
+
+        <ng-container *ngIf="!homeSubmitting() && homeError()">
+          <div class="icon-circle icon-circle--danger">
+            <ion-icon name="location-outline"></ion-icon>
+          </div>
+          <h1 class="title">No pudimos guardar tu ubicacion</h1>
+          <p class="subtitle">{{ homeError() }}</p>
+
+          <div class="banner banner--warn" *ngIf="homeLocked()">
+            <ion-icon name="alert-circle-outline"></ion-icon>
+            <span>Ya tienes una ubicacion Home Office guardada. Si te mudaste, pide a RH que la desbloquee.</span>
+          </div>
+
+          <div class="btn-row">
+            <ion-button expand="block" fill="outline" class="btn-outline" (click)="backToConfirmFromHome()">Cancelar</ion-button>
+            <ion-button expand="block" class="btn-primary" *ngIf="!homeLocked()" (click)="retryHomeCapture()">
+              <ion-icon slot="start" name="refresh-outline"></ion-icon>
+              Reintentar
+            </ion-button>
+          </div>
+        </ng-container>
+      </div>
+
+      <!-- Home Office paso 3: exito -->
+      <div class="step-enter" *ngIf="step() === 'homeSuccess'">
+        <div class="icon-circle icon-circle--success icon-circle--pulse-success">
+          <ion-icon name="checkmark-circle"></ion-icon>
+        </div>
+        <h1 class="title">Ubicacion guardada</h1>
+        <p class="subtitle">
+          Ya puedes checar tu entrada dentro de un radio de 100m de esta ubicacion. Si te
+          mudas, pide a RH que la desbloquee para volver a fijarla.
+        </p>
+
+        <ion-button expand="block" class="btn-primary" (click)="backToConfirmFromHome()">
+          Continuar
+        </ion-button>
+      </div>
+
+      <!-- Paso 2b: auto-enrolamiento, 1a captura ("save") -- solo la primera vez del empleado -->
+      <div class="step-enter" *ngIf="step() === 'enrollCapture'">
+        <h1 class="title">Enrolemos tu rostro</h1>
+        <ng-container *ngIf="!enrollSubmitting()">
+          <p class="subtitle" *ngIf="faceStage() === 'loadingModels'">Cargando reconocimiento facial...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'requestingCamera'">Activando camara...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'scanning' && !faceDetected()">Centra tu cara en el circulo</p>
+          <p class="subtitle subtitle--ok" *ngIf="faceStage() === 'scanning' && faceDetected()">Listo, quedate quieto</p>
+          <p class="error" *ngIf="faceStage() === 'error'">{{ faceError() }}</p>
+        </ng-container>
+        <p class="subtitle subtitle--ok" *ngIf="enrollSubmitting()">Guardando tu rostro...</p>
+
+        <div class="camera-frame" [class.camera-frame--ok]="faceDetected() && !enrollSubmitting()">
+          <span class="camera-frame__ring"></span>
+          <video #videoEl playsinline muted autoplay></video>
+          <canvas #canvasEl></canvas>
+          <ion-spinner name="crescent" *ngIf="faceStage() === 'loadingModels' || faceStage() === 'requestingCamera' || enrollSubmitting()"></ion-spinner>
+        </div>
+
+        <p class="error" *ngIf="enrollError()">{{ enrollError() }}</p>
+
+        <ion-button
+          expand="block"
+          class="btn-primary"
+          (click)="captureForEnroll()"
+          [disabled]="faceStage() !== 'scanning' || !faceDetected() || enrollSubmitting()"
+        >
+          <ion-spinner name="dots" *ngIf="enrollSubmitting()"></ion-spinner>
+          <ng-container *ngIf="!enrollSubmitting()">
+            <ion-icon slot="start" name="camera-outline"></ion-icon>
+            Capturar mi rostro
+          </ng-container>
+        </ion-button>
+      </div>
+
+      <!-- Paso 2c: auto-enrolamiento, 2a captura en vivo ("verify") -- se compara contra la 1a -->
+      <div class="step-enter" *ngIf="step() === 'enrollVerify'">
+        <h1 class="title">Confirma tu rostro</h1>
+        <ng-container *ngIf="!enrollSubmitting()">
+          <p class="subtitle" *ngIf="faceStage() === 'loadingModels'">Cargando reconocimiento facial...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'requestingCamera'">Activando camara...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'scanning' && !faceDetected()">Una vez mas: centra tu cara en el circulo</p>
+          <p class="subtitle subtitle--ok" *ngIf="faceStage() === 'scanning' && faceDetected()">Listo, quedate quieto</p>
+          <p class="error" *ngIf="faceStage() === 'error'">{{ faceError() }}</p>
+        </ng-container>
+        <p class="subtitle subtitle--ok" *ngIf="enrollSubmitting()">Confirmando...</p>
+
+        <div class="camera-frame" [class.camera-frame--ok]="faceDetected() && !enrollSubmitting()">
+          <span class="camera-frame__ring"></span>
+          <video #videoEl playsinline muted autoplay></video>
+          <canvas #canvasEl></canvas>
+          <ion-spinner name="crescent" *ngIf="faceStage() === 'loadingModels' || faceStage() === 'requestingCamera' || enrollSubmitting()"></ion-spinner>
+        </div>
+
+        <p class="error" *ngIf="enrollError() && !enrollMismatch()">{{ enrollError() }}</p>
+
+        <div class="banner banner--warn" *ngIf="enrollError() && enrollMismatch()">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>
+            <strong style="display: block; margin-bottom: 3px">{{ enrollError() }}</strong>
+            Intenta de nuevo con mas luz de frente, sin lentes oscuros ni cubrebocas.
+          </span>
+        </div>
+
+        <ion-button
+          expand="block"
+          class="btn-primary"
+          (click)="captureForVerify()"
+          [disabled]="faceStage() !== 'scanning' || !faceDetected() || enrollSubmitting()"
+        >
+          <ion-spinner name="dots" *ngIf="enrollSubmitting()"></ion-spinner>
+          <ng-container *ngIf="!enrollSubmitting()">
+            <ion-icon slot="start" name="finger-print-outline"></ion-icon>
+            Confirmar
+          </ng-container>
+        </ion-button>
+      </div>
+
+      <!-- Paso 3: ubicacion -->
+      <div class="step-enter" *ngIf="step() === 'location'">
+        <ng-container *ngIf="locationChecking() || locationState() === 'granted'">
+          <div class="icon-circle icon-circle--brand icon-circle--pulse">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+          <h1 class="title">Ubicandote...</h1>
+          <p class="subtitle">Necesitamos tu GPS para registrar donde estas.</p>
+        </ng-container>
+
+        <ng-container *ngIf="!locationChecking() && (locationState() === 'denied' || locationState() === 'unavailable')">
+          <div class="icon-circle icon-circle--danger">
+            <ion-icon name="location-outline"></ion-icon>
+          </div>
+          <h1 class="title">Necesitamos tu ubicacion</h1>
+          <p class="subtitle">
+            No podemos registrar tu asistencia sin acceso a tu ubicacion. Activa el GPS y da permiso
+            de ubicacion a esta app en los ajustes de tu telefono.
+          </p>
+          <div class="btn-row">
+            <ion-button expand="block" fill="outline" class="btn-outline" (click)="notMe()">Cancelar</ion-button>
+            <ion-button expand="block" class="btn-primary" (click)="checkLocation()">
+              <ion-icon slot="start" name="refresh-outline"></ion-icon>
+              Reintentar
+            </ion-button>
+          </div>
+        </ng-container>
+      </div>
+
+      <!-- Paso 4: camara (se queda montada todo el tiempo, incluso al enviar/reintentar,
+           para que el <video> nunca se destruya y la transmision de la camara no se pierda) -->
+      <div class="step-enter" *ngIf="step() === 'camera'">
+        <h1 class="title">Verifica tu rostro</h1>
+        <ng-container *ngIf="!submitting()">
+          <p class="subtitle" *ngIf="faceStage() === 'loadingModels'">Cargando reconocimiento facial...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'requestingCamera'">Activando camara...</p>
+          <p class="subtitle" *ngIf="faceStage() === 'scanning' && !faceDetected()">Centra tu cara en el circulo</p>
+          <p class="subtitle subtitle--ok" *ngIf="faceStage() === 'scanning' && faceDetected()">Listo, quedate quieto</p>
+          <p class="error" *ngIf="faceStage() === 'error'">{{ faceError() }}</p>
+        </ng-container>
+        <p class="subtitle subtitle--ok" *ngIf="submitting()">Registrando tu asistencia...</p>
+
+        <div class="camera-frame" [class.camera-frame--ok]="faceDetected() && !submitting()">
+          <span class="camera-frame__ring"></span>
+          <video #videoEl playsinline muted autoplay></video>
+          <canvas #canvasEl></canvas>
+          <ion-spinner name="crescent" *ngIf="faceStage() === 'loadingModels' || faceStage() === 'requestingCamera' || submitting()"></ion-spinner>
+        </div>
+
+        <p class="error" *ngIf="submitError() && !faceMismatch()">{{ submitError() }}</p>
+
+        <div class="banner banner--warn" *ngIf="submitError() && faceMismatch()">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>
+            <strong style="display: block; margin-bottom: 3px">{{ submitError() }}</strong>
+            Intenta de nuevo: busca un lugar con mas luz de frente (evita quedar a
+            contraluz), quitate lentes oscuros o cubrebocas, y centra bien tu rostro en
+            el circulo.
+          </span>
+        </div>
+
+        <ion-button
+          expand="block"
+          class="btn-primary"
+          (click)="register()"
+          [disabled]="faceStage() !== 'scanning' || !faceDetected() || submitting()"
+        >
+          <ion-spinner name="dots" *ngIf="submitting()"></ion-spinner>
+          <ng-container *ngIf="!submitting()">
+            <ion-icon slot="start" name="finger-print-outline"></ion-icon>
+            Registrar mi asistencia
+          </ng-container>
+        </ion-button>
+      </div>
+
+      <!-- Paso 5: exito -->
+      <div class="step-enter" *ngIf="step() === 'success' && result() as r">
+        <div class="icon-circle icon-circle--success icon-circle--pulse-success">
+          <ion-icon name="checkmark-circle"></ion-icon>
+        </div>
+        <h1 class="title">Listo, {{ employee()?.first_name }}!</h1>
+        <p class="chip chip--success" *ngIf="r.type === 'entrada'">Quedo registrada tu ENTRADA</p>
+        <p class="chip chip--brand" *ngIf="r.type === 'checkpoint'">Quedo registrada tu checada</p>
+
+        <div class="detail-row">
+          <ion-icon name="time-outline"></ion-icon>
+          <span>{{ r.record.recorded_at }}</span>
+        </div>
+        <div class="detail-row" *ngIf="r.record.location_label">
+          <ion-icon name="navigate-outline"></ion-icon>
+          <span>{{ r.record.location_label }}</span>
+        </div>
+
+        <ion-button expand="block" class="btn-primary" (click)="startOver()">
+          <ion-icon slot="start" name="log-out-outline"></ion-icon>
+          Listo
+        </ion-button>
+      </div>
+    </section>
+
+    <p class="foot-note">Tu ubicacion solo se usa para registrar tu asistencia.</p>
+  </div>
+</ion-content>

@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+/* Tailwind v4: habilita dark mode por clase .dark en <html> en vez de solo prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-brand-50: #f2f4ff;
+  --color-brand-100: #e6e9ff;
+  --color-brand-200: #c7cdff;
+  --color-brand-300: #a3adff;
+  --color-brand-400: #7c85ff;
+  --color-brand-500: #5b5bf6;
+  --color-brand-600: #4640dd;
+  --color-brand-700: #3730b3;
+  --color-brand-800: #2c298f;
+  --color-brand-900: #201e66;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar discreto para el sidebar / tablas */
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Transicion suave global al cambiar de tema */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 150ms;
+}

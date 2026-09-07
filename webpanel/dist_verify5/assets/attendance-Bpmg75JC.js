@@ -1,0 +1,1 @@
+import{i as e}from"./index-B6BOFzZA.js";var t={list(t={}){return e.get(`/attendance`,{params:t}).then(e=>e.data.data)},dayDetail(t,n){return e.get(`/attendance/day-detail/${t}/${n}`).then(e=>e.data.data)},todayMap(){return e.get(`/attendance/today-map`).then(e=>e.data.data)}};export{t};

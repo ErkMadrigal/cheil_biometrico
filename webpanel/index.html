@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cheil Biometrico | Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Aplica el tema guardado ANTES de pintar la app, para evitar el parpadeo blanco/negro (FOUC)
+      try {
+        const saved = localStorage.getItem('cheil-theme')
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

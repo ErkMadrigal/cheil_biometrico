@@ -1,0 +1,7 @@
+{
+  "name": "cheil-checador",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

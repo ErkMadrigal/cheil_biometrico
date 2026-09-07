@@ -1,0 +1,24 @@
+<script setup>
+defineProps({
+  color: { type: String, default: 'slate' }, // slate | emerald | red | amber | brand | sky | violet
+})
+
+const colorMap = {
+  slate: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+  red: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400',
+  amber: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  brand: 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300',
+  sky: 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
+  violet: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
+}
+</script>
+
+<template>
+  <span
+    class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
+    :class="colorMap[color] || colorMap.slate"
+  >
+    <slot />
+  </span>
+</template>

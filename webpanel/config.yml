@@ -1,0 +1,16 @@
+tunnel: 2bfdbdcd-a032-4867-b550-182c1d676ca3
+credentials-file: C:\Users\usuario\.cloudflared\2bfdbdcd-a032-4867-b550-182c1d676ca3.json
+
+ingress:
+  # Backend (XAMPP/Apache). Los clientes (app movil, etc.) deben seguir usando la ruta
+  # completa /cheil_biometrico/public/... en sus URLs, igual que con la liga temporal.
+  - hostname: api.centinal.org
+    service: http://localhost:80
+  # Web panel (Vite dev server)
+  - hostname: panel.centinal.org
+    service: http://localhost:5173
+  # App movil corriendo en Docker
+  - hostname: app.centinal.org
+    service: http://localhost:4200
+  # Cualquier otra cosa que le pegue al tunel sin coincidir arriba
+  - service: http_status:404

@@ -1,0 +1,1 @@
+import{c as e}from"./index-CoHUZkNi.js";var t=1,n=e(`toast`,{state:()=>({items:[]}),actions:{push(e,n=`success`,r=3500){let i=t++;return this.items.push({id:i,message:e,type:n}),r&&setTimeout(()=>this.dismiss(i),r),i},success(e){return this.push(e,`success`)},error(e){return this.push(e,`error`,5e3)},dismiss(e){this.items=this.items.filter(t=>t.id!==e)}}});export{n as t};

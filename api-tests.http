@@ -1,0 +1,238 @@
+### ============================================================
+### Pruebas de la API - Sistema de Registro Biometrico
+### Requiere la extension "REST Client" en VS Code (humao.rest-client)
+### o JetBrains HTTP Client (funciona casi igual, ver notas al final).
+###
+### Uso: abre este archivo, dale click a "Send Request" arriba de
+### cada bloque (### separa los requests). Corre "Login admin" primero:
+### VS Code REST Client guarda automaticamente el token de la respuesta
+### y los demas requests lo reutilizan con {{login.response.body.token}}.
+### ============================================================
+
+@baseUrl = http://localhost/cheil_biometrico/public
+@api = {{baseUrl}}/api/v1
+
+### 0. Health check (sin auth)
+GET {{baseUrl}}/
+
+
+### ============================================================
+### AUTH
+### ============================================================
+
+### 1. Login como admin (usuario creado por el seeder)
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@cheil.local",
+  "password": "Admin12345!"
+}
+
+### 2. Quien soy (requiere token)
+GET {{api}}/auth/me
+Authorization: Bearer {{login.response.body.token}}
+
+
+### ============================================================
+### EMPLEADOS
+### ============================================================
+
+### 3. Listar empleados
+GET {{api}}/employees?page=1&per_page=25
+Authorization: Bearer {{login.response.body.token}}
+
+### 4. Buscar empleados por nombre/numero/CURP/RFC
+GET {{api}}/employees?search=juan
+Authorization: Bearer {{login.response.body.token}}
+
+### 5. Crear empleado (JSON - sin foto). Para mandar foto usa multipart (ver nota al final del archivo).
+# @name createEmployee
+POST {{api}}/employees
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "employee_number": "EMP-0001",
+  "zkteco_pin": "1001",
+  "first_name": "Juan",
+  "paternal_last_name": "Perez",
+  "maternal_last_name": "Lopez",
+  "curp": "PELJ900101HDFRPN01",
+  "rfc": "PELJ900101AB1",
+  "email": "juan.perez@cheil.mx",
+  "phone": "5511223344",
+  "position": "Ejecutivo de Ventas",
+  "department": "Comercial",
+  "hire_date": "2026-01-15"
+}
+
+### 6. Ver un empleado
+GET {{api}}/employees/1
+Authorization: Bearer {{login.response.body.token}}
+
+### 7. Actualizar empleado (JSON)
+PUT {{api}}/employees/1
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "employee_number": "EMP-0001",
+  "first_name": "Juan",
+  "paternal_last_name": "Perez",
+  "maternal_last_name": "Lopez",
+  "position": "Gerente de Cuenta"
+}
+
+### 8. Enrolar rostro de referencia (descriptor de 128 numeros, aqui de ejemplo con ceros)
+POST {{api}}/employees/1/face
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "descriptor": [0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.10,0.11,0.12,0.13,0.14,0.15,0.16,0.17,0.18,0.19,0.20,0.21,0.22,0.23,0.24,0.25,0.26,0.27,0.28,0.29,0.30,0.31,0.32,0.33,0.34,0.35,0.36,0.37,0.38,0.39,0.40,0.41,0.42,0.43,0.44,0.45,0.46,0.47,0.48,0.49,0.50,0.51,0.52,0.53,0.54,0.55,0.56,0.57,0.58,0.59,0.60,0.61,0.62,0.63,0.64,0.65,0.66,0.67,0.68,0.69,0.70,0.71,0.72,0.73,0.74,0.75,0.76,0.77,0.78,0.79,0.80,0.81,0.82,0.83,0.84,0.85,0.86,0.87,0.88,0.89,0.90,0.91,0.92,0.93,0.94,0.95,0.96,0.97,0.98,0.99,1.00,0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.10,0.11,0.12,0.13,0.14,0.15,0.16,0.17,0.18,0.19,0.20,0.21,0.22,0.23],
+  "source": "web_panel"
+}
+
+### 9. Dar de baja empleado (borrado logico)
+DELETE {{api}}/employees/1
+Authorization: Bearer {{login.response.body.token}}
+
+
+### ============================================================
+### DISPOSITIVOS (checadores ZKTeco)
+### ============================================================
+
+### 10. Listar dispositivos
+GET {{api}}/devices
+Authorization: Bearer {{login.response.body.token}}
+
+### 11. Registrar checador manualmente (o edita el que se auto-registro al hacer su primer handshake ADMS)
+# @name createDevice
+POST {{api}}/devices
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Entrada - Huella",
+  "serial_number": "ZK-ENTRADA-001",
+  "type": "fingerprint_entry",
+  "location_label": "Oficina Polanco",
+  "latitude": 19.4335,
+  "longitude": -99.1932,
+  "is_active": 1
+}
+
+### 12. Actualizar dispositivo
+PUT {{api}}/devices/1
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+  "name": "Entrada - Huella (puerta principal)",
+  "serial_number": "ZK-ENTRADA-001",
+  "type": "fingerprint_entry",
+  "is_active": 1
+}
+
+### 13. Eliminar dispositivo
+DELETE {{api}}/devices/1
+Authorization: Bearer {{login.response.body.token}}
+
+
+### ============================================================
+### ASISTENCIA
+### ============================================================
+
+### 14. Listar registros de asistencia (panel), con filtros opcionales
+GET {{api}}/attendance?employee_id=1&date_from=2026-08-01&date_to=2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+### 15. Login como empleado (para probar el checkin como lo haria la app movil)
+# Antes de correr esto, crea un usuario con role_id=3 (employee) y employee_id=1
+# directo en la tabla `users`, o agrega un endpoint de gestion de usuarios mas adelante.
+# @name loginEmployee
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "juan.perez@cheil.mx",
+  "password": "Empleado123!"
+}
+
+### 16. Checkin (simulando la app movil: geolocalizacion + foto)
+POST {{api}}/attendance/checkin
+Authorization: Bearer {{loginEmployee.response.body.token}}
+Content-Type: application/json
+
+{
+  "latitude": 19.4335,
+  "longitude": -99.1932,
+  "accuracy": 12.5,
+  "location_label": "Presidente Masaryk 111, Polanco",
+  "photo_base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD..."
+}
+
+### 17. Segundo checkin del dia (otra ubicacion - visita a cliente)
+POST {{api}}/attendance/checkin
+Authorization: Bearer {{loginEmployee.response.body.token}}
+Content-Type: application/json
+
+{
+  "latitude": 19.3168,
+  "longitude": -99.1912,
+  "accuracy": 8.0,
+  "location_label": "Pedregal, CDMX"
+}
+
+### 18. Mi historial (app movil)
+GET {{api}}/attendance/mine?date_from=2026-08-01&date_to=2026-08-08
+Authorization: Bearer {{loginEmployee.response.body.token}}
+
+### 19. Detalle de un dia especifico (marca entrada/checkpoint/salida)
+GET {{api}}/attendance/day-detail/1/2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+
+### ============================================================
+### REPORTES Y DASHBOARD
+### ============================================================
+
+### 20. Reporte diario - un empleado
+GET {{api}}/reports/daily?employee_id=1&date_from=2026-08-01&date_to=2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+### 21. Reporte diario - TODOS los empleados
+GET {{api}}/reports/daily?date_from=2026-08-01&date_to=2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+### 22. Exportar reporte a CSV (se descarga el archivo)
+GET {{api}}/reports/daily/export?date_from=2026-08-01&date_to=2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+### 23. Detalle de un dia (mismo formato que el de attendance, vista de reportes)
+GET {{api}}/reports/day-detail/1/2026-08-08
+Authorization: Bearer {{login.response.body.token}}
+
+### 24. Dashboard - resumen general
+GET {{api}}/dashboard/summary
+Authorization: Bearer {{login.response.body.token}}
+
+
+### ============================================================
+### NOTAS
+### ============================================================
+# - JetBrains HTTP Client (PhpStorm/IntelliJ): usa el mismo formato de este archivo,
+#   pero para reusar el token de una respuesta usa un script inline:
+#     > {% client.global.set("token", response.body.token); %}
+#   y luego referencia con {{token}} en vez de {{login.response.body.token}}.
+#
+# - Para subir la FOTO del empleado (multipart real), usa Postman/Insomnia o curl:
+#   curl -X POST {{api}}/employees ^
+#     -H "Authorization: Bearer TU_TOKEN" ^
+#     -F "employee_number=EMP-0002" -F "first_name=Ana" -F "paternal_last_name=Diaz" ^
+#     -F "photo=@C:\ruta\a\foto.jpg"
+#
+# - Las rutas /iclock/* (protocolo ADMS del checador ZKTeco) no llevan JWT y las llama
+#   el dispositivo directamente, no se prueban desde aqui en condiciones normales.

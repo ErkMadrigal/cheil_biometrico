@@ -1,0 +1,22 @@
+services:
+  mobile:
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      # node_modules aparte en un volumen de Docker (no en tu carpeta de Windows):
+      # evita reinstalar todo cada vez y es mucho mas rapido que node_modules sobre
+      # una carpeta montada desde Windows.
+      - mobile_node_modules:/app/node_modules
+    ports:
+      - "4200:4200"
+    environment:
+      # Docker Desktop en Windows a veces no manda los eventos de "archivo cambio"
+      # desde el host al contenedor (bind mount). Con esto, en vez de esperar esos
+      # eventos, Angular revisa los archivos cada rato (polling) -- asi los cambios
+      # SIEMPRE se ven sin tener que reiniciar el contenedor.
+      - CHOKIDAR_USEPOLLING=true
+    command: sh -c "npm install && npm start -- --host 0.0.0.0"
+
+volumes:
+  mobile_node_modules:
