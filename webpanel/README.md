@@ -71,6 +71,21 @@ Consume la API del backend CI4 (`C:\xampp\htdocs\cheil_biometrico`).
   captura su rostro y luego se le pide una **segunda foto en vivo** que se compara contra la primera
   antes de dar el enrolamiento por bueno — evita que quede una foto de mala calidad o de otra persona
   sin que nadie se de cuenta.
+- **Departamentos** (`/departamentos`, `DepartmentsView.vue`): catalogo simple (alta rapida,
+  renombrar, desactivar/reactivar). Es obligatorio elegir uno del catalogo al dar de alta o
+  editar un empleado (`EmployeeFormDrawer.vue` ya no usa texto libre, usa un `<select>`); los
+  empleados sin departamento asignado (los que ya existian antes de este cambio) se marcan con
+  una etiqueta "Sin departamento" en el listado de Empleados para que RH los ubique facil.
+- **Incidencias** (`/incidencias`, `IncidentsView.vue` + `IncidentFormDrawer.vue`): mucho
+  trafico, siniestro en carretera, clima, etc. Registro independiente de las checadas: el
+  empleado afectado y la evidencia (foto/documento) son opcionales, el tipo y la fecha son
+  obligatorios. El formulario trae un **alta rapida del catalogo de tipos** sin salir de la
+  pantalla (boton "Nuevo tipo"). Filtros por empleado, departamento, tipo y rango de fechas.
+- **Retardo + filtro por departamento en Asistencia/Reportes**: `AttendanceView.vue`,
+  `ReportsView.vue`, `ExportReportView.vue` y `DayDetailDrawer.vue` ahora muestran una
+  etiqueta roja "Retardo" cuando la entrada del dia fue despues de las 9:15am, y todos
+  traen un selector de departamento junto al buscador de empleado para filtrar/exportar
+  por departamento completo en vez de uno a la vez.
 
 ## Instalacion
 

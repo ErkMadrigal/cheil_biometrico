@@ -19,6 +19,18 @@ CREATE TABLE roles (
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------
+-- Catalogo de departamentos (Retail Center, Creative, Client Service, etc). El cliente
+-- lo va alimentando desde el panel (modulo Departamentos). Reemplaza al viejo
+-- employees.department (texto libre) -- ver employees.department_id abajo.
+CREATE TABLE departments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------
 CREATE TABLE employees (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     employee_number VARCHAR(30) NOT NULL UNIQUE,
@@ -32,7 +44,8 @@ CREATE TABLE employees (
     email VARCHAR(150) NULL,
     phone VARCHAR(20) NULL,
     position VARCHAR(100) NULL,
-    department VARCHAR(100) NULL,
+    department VARCHAR(100) NULL COMMENT 'DEPRECADO: texto libre viejo, ya no se usa en el panel, se deja por historial',
+    department_id INT UNSIGNED NULL COMMENT 'Catalogo departments. Obligatorio en el panel al dar de alta/editar',
     hire_date DATE NULL,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
     -- Home Office personal: la fija el empleado desde la app (verificacion facial + GPS),
@@ -47,7 +60,39 @@ CREATE TABLE employees (
     created_at DATETIME NULL,
     updated_at DATETIME NULL,
     deleted_at DATETIME NULL,
-    KEY idx_status (status)
+    KEY idx_status (status),
+    KEY idx_department (department_id)
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------
+-- Catalogo de tipos de incidencia (Mucho trafico, Siniestro en carretera, etc). El
+-- cliente lo alimenta desde el modulo de Incidencias en el panel.
+CREATE TABLE incident_types (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL
+) ENGINE=InnoDB;
+
+-- ---------------------------------------------------------
+-- Incidencias reportadas (independientes de una checada especifica): mucho trafico,
+-- siniestro en carretera, etc. El empleado afectado y la evidencia son opcionales.
+CREATE TABLE incidents (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT UNSIGNED NULL,
+    incident_type_id INT UNSIGNED NOT NULL,
+    incident_date DATE NOT NULL,
+    description TEXT NULL,
+    evidence_path VARCHAR(255) NULL,
+    created_by INT UNSIGNED NULL COMMENT 'users.id de quien la capturo',
+    created_at DATETIME NULL,
+    updated_at DATETIME NULL,
+    KEY idx_employee (employee_id),
+    KEY idx_type (incident_type_id),
+    KEY idx_date (incident_date),
+    CONSTRAINT fk_incidents_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL,
+    CONSTRAINT fk_incidents_type FOREIGN KEY (incident_type_id) REFERENCES incident_types(id)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------

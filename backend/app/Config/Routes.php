@@ -97,6 +97,28 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api', 'filter' => 'cor
         $routes->put('geo-zones/(:num)', 'GeoZoneController::update/$1');
         $routes->delete('geo-zones/(:num)', 'GeoZoneController::delete/$1');
 
+        // Catalogo de departamentos (panel: admin/RH lo va alimentando)
+        $routes->get('departments', 'DepartmentController::index');
+        $routes->get('departments/(:num)', 'DepartmentController::show/$1');
+        $routes->post('departments', 'DepartmentController::create');
+        $routes->put('departments/(:num)', 'DepartmentController::update/$1');
+        $routes->delete('departments/(:num)', 'DepartmentController::delete/$1');
+
+        // Catalogo de tipos de incidencia (panel: admin)
+        $routes->get('incident-types', 'IncidentTypeController::index');
+        $routes->post('incident-types', 'IncidentTypeController::create');
+        $routes->put('incident-types/(:num)', 'IncidentTypeController::update/$1');
+        $routes->delete('incident-types/(:num)', 'IncidentTypeController::delete/$1');
+
+        // Incidencias (mucho trafico, siniestro en carretera, etc) -- registro
+        // independiente, no ligado a una checada especifica
+        $routes->get('incidents', 'IncidentController::index');
+        $routes->get('incidents/(:num)', 'IncidentController::show/$1');
+        $routes->post('incidents', 'IncidentController::create');
+        $routes->post('incidents/(:num)', 'IncidentController::update/$1'); // soporte multipart (evidencia)
+        $routes->put('incidents/(:num)', 'IncidentController::update/$1');
+        $routes->delete('incidents/(:num)', 'IncidentController::delete/$1');
+
         // Asistencia
         $routes->get('attendance', 'AttendanceController::index');          // panel: listado con filtros
         $routes->post('attendance/checkin', 'AttendanceController::checkin'); // app movil: registrar checada

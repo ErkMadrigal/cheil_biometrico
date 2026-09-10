@@ -109,6 +109,10 @@ function mapsUrl(row) {
                   {{ typeMeta[row.type]?.label }}
                   <span class="ml-1.5 font-normal text-slate-400 dark:text-slate-500">{{ timeLabel(row.recorded_at) }}</span>
                 </p>
+                <Badge v-if="row.is_late" color="red">
+                  <Icon name="alertTriangle" class="h-3 w-3" />
+                  Retardo
+                </Badge>
               </div>
 
               <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

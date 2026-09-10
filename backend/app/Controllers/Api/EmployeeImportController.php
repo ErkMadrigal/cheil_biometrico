@@ -3,6 +3,7 @@
 namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
+use App\Models\DepartmentModel;
 use App\Models\EmployeeModel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
@@ -96,6 +97,16 @@ class EmployeeImportController extends BaseController
         $updated = 0;
         $failed  = 0;
 
+        // El departamento en el xlsx viene como texto (columna "departamento") pero
+        // department_id ahora es obligatorio y se elige del catalogo -- lo resolvemos
+        // aqui por nombre (sin importar mayusculas/espacios). Si el texto no matchea
+        // ningun departamento existente, esa fila truena con un mensaje claro en vez
+        // de crear departamentos nuevos "a lo tonto" por typos.
+        $departmentsByName = [];
+        foreach ((new DepartmentModel())->findAll() as $dept) {
+            $departmentsByName[mb_strtolower(trim($dept['name']))] = $dept['id'];
+        }
+
         foreach ($rows as $i => $row) {
             $rowNumber = $i + 2; // fila 1 = encabezado, $i arranca en 0
 
@@ -105,6 +116,7 @@ class EmployeeImportController extends BaseController
             }
 
             $statusRaw = strtolower(trim((string) ($row[12] ?? '')));
+            $departmentText = $this->nullIfEmpty($row[10] ?? null);
 
             $data = [
                 'employee_number'    => trim((string) ($row[0] ?? '')),
@@ -117,7 +129,8 @@ class EmployeeImportController extends BaseController
                 'email'              => $this->nullIfEmpty($row[7] ?? null),
                 'phone'              => $this->nullIfEmpty($row[8] ?? null),
                 'position'           => $this->nullIfEmpty($row[9] ?? null),
-                'department'         => $this->nullIfEmpty($row[10] ?? null),
+                'department'         => $departmentText,
+                'department_id'      => $departmentText !== null ? ($departmentsByName[mb_strtolower(trim($departmentText))] ?? null) : null,
                 'hire_date'          => $this->normalizeDate($row[11] ?? null),
                 'status'             => in_array($statusRaw, ['active', 'inactive'], true) ? $statusRaw : 'active',
             ];
@@ -129,6 +142,16 @@ class EmployeeImportController extends BaseController
                     'employee_number' => $data['employee_number'] ?: null,
                     'status'          => 'error',
                     'message'         => 'Faltan campos obligatorios (numero_empleado, nombre, apellido_paterno).',
+                ];
+                continue;
+            }
+
+            if ($departmentText !== null && $data['department_id'] === null) {
+                $failed++;
+                $results[] = [
+                    'row' => $rowNumber, 'employee_number' => $data['employee_number'],
+                    'status' => 'error',
+                    'message' => "El departamento \"{$departmentText}\" no existe en el catalogo. Creelo primero en Departamentos o corrige el nombre en el archivo.",
                 ];
                 continue;
             }

@@ -23,6 +23,8 @@ const nav = [
   { name: 'dispositivos', label: 'Dispositivos', icon: 'device' },
   { name: 'zonas', label: 'Zonas geograficas', icon: 'mapPin' },
   { name: 'movilidad', label: 'Movilidad', icon: 'compass' },
+  { name: 'departamentos', label: 'Departamentos', icon: 'building' },
+  { name: 'incidencias', label: 'Incidencias', icon: 'alertTriangle' },
 ]
 
 function logout() {

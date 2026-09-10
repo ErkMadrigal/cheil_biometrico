@@ -18,17 +18,24 @@ class ReportController extends BaseController
     }
 
     /**
-     * GET /api/v1/reports/daily?employee_id=&date_from=&date_to=
+     * GET /api/v1/reports/daily?employee_id=&department_id=&date_from=&date_to=
      * Si no se manda employee_id, regresa el resumen de TODOS los empleados (el "reporteador" general).
-     * Por cada dia y empleado: entrada (primer registro), salida (ultimo registro), total de checkpoints.
+     * Por cada dia y empleado: entrada (primer registro), salida (ultimo registro), total de checkpoints,
+     * is_late (retardo: entrada despues de las 9:15am). Se puede filtrar por departamento.
      */
     public function daily()
     {
-        $employeeId = $this->request->getGet('employee_id');
-        $dateFrom   = $this->request->getGet('date_from') ?? date('Y-m-d', strtotime('-30 days'));
-        $dateTo     = $this->request->getGet('date_to') ?? date('Y-m-d');
+        $employeeId   = $this->request->getGet('employee_id');
+        $departmentId = $this->request->getGet('department_id');
+        $dateFrom     = $this->request->getGet('date_from') ?? date('Y-m-d', strtotime('-30 days'));
+        $dateTo       = $this->request->getGet('date_to') ?? date('Y-m-d');
 
-        $rows = $this->attendance->dailySummary($employeeId ? (int) $employeeId : null, $dateFrom, $dateTo);
+        $rows = $this->attendance->dailySummary(
+            $employeeId ? (int) $employeeId : null,
+            $dateFrom,
+            $dateTo,
+            $departmentId ? (int) $departmentId : null
+        );
 
         return $this->ok([
             'date_from' => $dateFrom,
@@ -38,29 +45,37 @@ class ReportController extends BaseController
     }
 
     /**
-     * GET /api/v1/reports/daily/export?employee_id=&date_from=&date_to=
+     * GET /api/v1/reports/daily/export?employee_id=&department_id=&date_from=&date_to=
      * Mismo reporte que arriba pero descargable en CSV para Excel.
      */
     public function exportDaily()
     {
-        $employeeId = $this->request->getGet('employee_id');
-        $dateFrom   = $this->request->getGet('date_from') ?? date('Y-m-d', strtotime('-30 days'));
-        $dateTo     = $this->request->getGet('date_to') ?? date('Y-m-d');
+        $employeeId   = $this->request->getGet('employee_id');
+        $departmentId = $this->request->getGet('department_id');
+        $dateFrom     = $this->request->getGet('date_from') ?? date('Y-m-d', strtotime('-30 days'));
+        $dateTo       = $this->request->getGet('date_to') ?? date('Y-m-d');
 
-        $rows = $this->attendance->dailySummary($employeeId ? (int) $employeeId : null, $dateFrom, $dateTo);
+        $rows = $this->attendance->dailySummary(
+            $employeeId ? (int) $employeeId : null,
+            $dateFrom,
+            $dateTo,
+            $departmentId ? (int) $departmentId : null
+        );
 
         $stream = fopen('php://temp', 'r+');
-        fputcsv($stream, ['Numero empleado', 'Nombre completo', 'Fecha', 'Entrada', 'Salida', 'Total de registros']);
+        fputcsv($stream, ['Numero empleado', 'Nombre completo', 'Departamento', 'Fecha', 'Entrada', 'Salida', 'Total de registros', 'Retardo']);
 
         foreach ($rows as $row) {
             $fullName = trim($row['first_name'] . ' ' . $row['paternal_last_name'] . ' ' . ($row['maternal_last_name'] ?? ''));
             fputcsv($stream, [
                 $row['employee_number'],
                 $fullName,
+                $row['department_name'] ?? '',
                 $row['work_date'],
                 $row['entrada'],
                 $row['salida'],
                 $row['total_checkpoints'],
+                $row['is_late'] ? 'Si' : 'No',
             ]);
         }
 
@@ -91,22 +106,30 @@ class ReportController extends BaseController
      */
     public function payrollExport()
     {
-        $employeeId = $this->request->getGet('employee_id');
-        $dateFrom   = $this->request->getGet('date_from');
-        $dateTo     = $this->request->getGet('date_to');
+        $employeeId   = $this->request->getGet('employee_id');
+        $departmentId = $this->request->getGet('department_id');
+        $dateFrom     = $this->request->getGet('date_from');
+        $dateTo       = $this->request->getGet('date_to');
 
         if (!$dateFrom || !$dateTo) {
             return $this->fail('date_from y date_to son obligatorios.', 422);
         }
 
-        $rows = $this->attendance->dailySummary($employeeId ? (int) $employeeId : null, $dateFrom, $dateTo);
+        $rows = $this->attendance->dailySummary(
+            $employeeId ? (int) $employeeId : null,
+            $dateFrom,
+            $dateTo,
+            $departmentId ? (int) $departmentId : null
+        );
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Asistencia');
-        $headers = ['Employee ID', 'Employee Name', 'Work date', 'Year&Date', 'Time In', 'Time Out'];
+        // Se agregan Departamento y Retardo al final para no romper el formato EXACTO
+        // que espera el sistema de nomina externo en las primeras 6 columnas (A-F).
+        $headers = ['Employee ID', 'Employee Name', 'Work date', 'Year&Date', 'Time In', 'Time Out', 'Department', 'Late'];
         $sheet->fromArray($headers, null, 'A1');
-        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
 
         $rowNum = 2;
         foreach ($rows as $row) {
@@ -122,10 +145,12 @@ class ReportController extends BaseController
             $sheet->setCellValueExplicit("D{$rowNum}", $yearDate, DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("E{$rowNum}", $timeIn, DataType::TYPE_STRING);
             $sheet->setCellValueExplicit("F{$rowNum}", $timeOut, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("G{$rowNum}", $row['department_name'] ?? '', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("H{$rowNum}", $row['is_late'] ? 'Si' : 'No', DataType::TYPE_STRING);
             $rowNum++;
         }
 
-        foreach (range('A', 'F') as $col) {
+        foreach (range('A', 'H') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 

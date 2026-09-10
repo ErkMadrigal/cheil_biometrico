@@ -224,7 +224,11 @@ onMounted(load)
               </td>
               <td class="px-5 py-3">
                 <p class="text-slate-700 dark:text-slate-300">{{ row.position || '—' }}</p>
-                <p class="text-xs text-slate-400 dark:text-slate-500">{{ row.department || '—' }}</p>
+                <p v-if="row.department_name" class="text-xs text-slate-400 dark:text-slate-500">{{ row.department_name }}</p>
+                <Badge v-else color="amber">
+                  <Icon name="alertTriangle" class="h-3 w-3" />
+                  Sin departamento
+                </Badge>
               </td>
               <td class="px-5 py-3">
                 <p class="text-slate-700 dark:text-slate-300">{{ row.email || '—' }}</p>

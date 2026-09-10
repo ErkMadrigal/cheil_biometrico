@@ -28,12 +28,44 @@ class AttendanceRecordModel extends Model
     private const WORK_DAY_START_HOUR = 5;
 
     /**
+     * Regla de retardo: la ENTRADA (primer registro del dia laboral, sin importar
+     * que el dia laboral arranque a las 5am) se espera a las 9:00am, con 15 minutos
+     * de tolerancia. Si la entrada cae despues de las 9:15:00am, se marca is_late.
+     * Esto es independiente de en que "dia laboral" (ventana 5am-4:59am) cae el
+     * registro -- solo importa la hora del reloj de esa entrada.
+     */
+    private const EXPECTED_ENTRADA_TIME  = '09:00:00';
+    private const LATE_TOLERANCE_MINUTES = 15;
+
+    /**
      * Expresion SQL que regresa la "fecha laboral" de una columna datetime, recorriendo
      * el corte de medianoche a las 5am. Ej: 2024-05-10 02:30:00 -> work_date 2024-05-09.
      */
     private function workDateSql(string $column = 'recorded_at'): string
     {
         return 'DATE(' . $column . ' - INTERVAL ' . self::WORK_DAY_START_HOUR . ' HOUR)';
+    }
+
+    /**
+     * Hora limite (HH:MM:SS) despues de la cual una entrada ya cuenta como retardo:
+     * EXPECTED_ENTRADA_TIME + LATE_TOLERANCE_MINUTES.
+     */
+    private function lateThresholdTime(): string
+    {
+        return date('H:i:s', strtotime(self::EXPECTED_ENTRADA_TIME) + self::LATE_TOLERANCE_MINUTES * 60);
+    }
+
+    /**
+     * ¿Esta entrada (datetime completo) ya es retardo? Compara solo la hora del reloj
+     * contra el umbral 9:00am+15min, sin importar la fecha/dia laboral.
+     */
+    private function isLate(?string $entradaDateTime): bool
+    {
+        if (!$entradaDateTime) {
+            return false;
+        }
+
+        return date('H:i:s', strtotime($entradaDateTime)) > $this->lateThresholdTime();
     }
 
     /**
@@ -58,11 +90,25 @@ class AttendanceRecordModel extends Model
      */
     public function search(array $filters, int $page = 1, int $perPage = 25): array
     {
-        $builder = $this->select('attendance_records.*, employees.first_name, employees.paternal_last_name, employees.maternal_last_name, employees.employee_number')
+        $workDateExpr = $this->workDateSql('attendance_records.recorded_at');
+
+        // Subquery: hora de la entrada (primer registro) del mismo empleado en el mismo
+        // dia laboral que este renglon. Sirve para marcar is_late SOLO en el registro
+        // que efectivamente es la entrada, no en checkpoints/salidas intermedios.
+        $dayEntradaSql = '(SELECT MIN(ar2.recorded_at) FROM attendance_records ar2
+            WHERE ar2.employee_id = attendance_records.employee_id
+              AND ' . $this->workDateSql('ar2.recorded_at') . ' = ' . $workDateExpr . '
+        ) as day_entrada_at';
+
+        $builder = $this->select('attendance_records.*, employees.first_name, employees.paternal_last_name, employees.maternal_last_name, employees.employee_number, employees.department_id')
+            ->select($dayEntradaSql, false)
             ->join('employees', 'employees.id = attendance_records.employee_id');
 
         if (!empty($filters['employee_id'])) {
             $builder->where('attendance_records.employee_id', $filters['employee_id']);
+        }
+        if (!empty($filters['department_id'])) {
+            $builder->where('employees.department_id', $filters['department_id']);
         }
         if (!empty($filters['date_from'])) {
             $builder->where($this->workDateSql('attendance_records.recorded_at') . ' >=', $filters['date_from']);
@@ -81,6 +127,13 @@ class AttendanceRecordModel extends Model
             ->get()
             ->getResultArray();
 
+        foreach ($rows as &$row) {
+            $isEntrada = $row['day_entrada_at'] !== null && $row['recorded_at'] === $row['day_entrada_at'];
+            $row['is_entrada'] = $isEntrada;
+            $row['is_late']    = $isEntrada ? $this->isLate($row['day_entrada_at']) : false;
+        }
+        unset($row);
+
         return ['data' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage];
     }
 
@@ -88,17 +141,19 @@ class AttendanceRecordModel extends Model
      * Resumen diario por empleado: entrada = primer registro del dia,
      * salida = ultimo registro del dia, checkpoints = todo lo intermedio.
      */
-    public function dailySummary(?int $employeeId, string $dateFrom, string $dateTo): array
+    public function dailySummary(?int $employeeId, string $dateFrom, string $dateTo, ?int $departmentId = null): array
     {
         $workDate = $this->workDateSql('ar.recorded_at');
 
         $builder = $this->db->table('attendance_records ar')
             ->select('ar.employee_id, e.employee_number, e.first_name, e.paternal_last_name, e.maternal_last_name,
+                      e.department_id, d.name as department_name,
                       ' . $workDate . ' as work_date,
                       MIN(ar.recorded_at) as entrada,
                       MAX(ar.recorded_at) as salida,
                       COUNT(*) as total_checkpoints')
             ->join('employees e', 'e.id = ar.employee_id')
+            ->join('departments d', 'd.id = e.department_id', 'left')
             ->where($workDate . ' >=', $dateFrom)
             ->where($workDate . ' <=', $dateTo)
             ->groupBy('ar.employee_id, ' . $workDate)
@@ -107,8 +162,18 @@ class AttendanceRecordModel extends Model
         if ($employeeId) {
             $builder->where('ar.employee_id', $employeeId);
         }
+        if ($departmentId) {
+            $builder->where('e.department_id', $departmentId);
+        }
 
-        return $builder->get()->getResultArray();
+        $rows = $builder->get()->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['is_late'] = $this->isLate($row['entrada']);
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /**
@@ -126,10 +191,13 @@ class AttendanceRecordModel extends Model
         foreach ($rows as $i => &$row) {
             if ($i === 0) {
                 $row['type'] = 'entrada';
+                $row['is_late'] = $this->isLate($row['recorded_at']);
             } elseif ($i === $count - 1 && $count > 1) {
                 $row['type'] = 'salida';
+                $row['is_late'] = false;
             } else {
                 $row['type'] = 'checkpoint';
+                $row['is_late'] = false;
             }
         }
 

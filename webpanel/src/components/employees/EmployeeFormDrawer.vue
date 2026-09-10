@@ -1,8 +1,9 @@
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import employeesApi from '../../api/employees'
+import departmentsApi from '../../api/departments'
 import { resolveMediaUrl } from '../../utils/media'
 import Icon from '../Icon.vue'
 
@@ -25,7 +26,7 @@ const blankForm = () => ({
   email: '',
   phone: '',
   position: '',
-  department: '',
+  department_id: '',
   hire_date: '',
   status: 'active',
 })
@@ -35,6 +36,33 @@ const loading = ref(false)
 const saving = ref(false)
 const errors = ref({})
 const generalError = ref('')
+
+// Catalogo de departamentos para el <select> (obligatorio). Se carga una vez; el
+// modulo Departamentos del panel es quien lo alimenta.
+const departments = ref([])
+const departmentsLoaded = ref(false)
+// Si el empleado que se esta editando ya tenia un departamento que ahora esta
+// desactivado, se sigue mostrando en el select (con etiqueta) para no perder el
+// dato -- solo desaparece de la lista de opciones para altas/ediciones nuevas.
+const currentInactiveDepartment = ref(null)
+
+async function loadDepartments() {
+  try {
+    departments.value = await departmentsApi.list()
+  } catch (e) {
+    generalError.value = 'No se pudo cargar el catalogo de departamentos.'
+  } finally {
+    departmentsLoaded.value = true
+  }
+}
+
+const departmentOptions = computed(() => {
+  const active = departments.value.filter((d) => Number(d.is_active) === 1)
+  if (currentInactiveDepartment.value && !active.some((d) => d.id === currentInactiveDepartment.value.id)) {
+    return [...active, currentInactiveDepartment.value]
+  }
+  return active
+})
 
 const photoFile = ref(null)
 const photoPreview = ref(null)
@@ -60,6 +88,7 @@ function resetForm() {
   homeLocation.value = null
   unlockError.value = ''
   unlockedJustNow.value = false
+  currentInactiveDepartment.value = null
 }
 
 function initHomeMap() {
@@ -109,11 +138,17 @@ async function loadEmployee(id) {
       email: data.email || '',
       phone: data.phone || '',
       position: data.position || '',
-      department: data.department || '',
+      department_id: data.department_id || '',
       hire_date: data.hire_date ? data.hire_date.slice(0, 10) : '',
       status: data.status || 'active',
     })
     existingPhotoPath.value = data.photo_path
+
+    // Si el departamento que trae este empleado ya no esta en el catalogo activo
+    // (alguien lo desactivo), lo agregamos como opcion extra para no perder el dato.
+    if (data.department_id && data.department_name && !departments.value.some((d) => d.id === data.department_id)) {
+      currentInactiveDepartment.value = { id: data.department_id, name: `${data.department_name} (inactivo)`, is_active: 0 }
+    }
 
     if (data.home_lat !== null && data.home_lat !== undefined) {
       homeLocation.value = {
@@ -152,6 +187,7 @@ watch(
   },
 )
 
+onMounted(loadDepartments)
 onBeforeUnmount(destroyHomeMap)
 
 function onPhotoChange(e) {
@@ -311,8 +347,15 @@ async function onSubmit() {
               <input v-model="form.position" type="text" class="input" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Departamento</label>
-              <input v-model="form.department" type="text" class="input" />
+              <label class="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Departamento *</label>
+              <select v-model="form.department_id" required class="input">
+                <option value="" disabled>Selecciona un departamento</option>
+                <option v-for="d in departmentOptions" :key="d.id" :value="d.id">{{ d.name }}</option>
+              </select>
+              <p v-if="errors.department_id" class="mt-1 text-xs text-red-500">{{ errors.department_id }}</p>
+              <p v-else-if="departmentsLoaded && !departmentOptions.length" class="mt-1 text-xs text-amber-500">
+                No hay departamentos en el catalogo. Agrega uno primero en el modulo Departamentos.
+              </p>
             </div>
             <div>
               <label class="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Fecha de ingreso</label>

@@ -19,16 +19,17 @@ class AttendanceController extends BaseController
     }
 
     /**
-     * GET /api/v1/attendance?employee_id=&date_from=&date_to=&source_type=&page=&per_page=
+     * GET /api/v1/attendance?employee_id=&department_id=&date_from=&date_to=&source_type=&page=&per_page=
      * Usado por el web panel para listar/filtrar registros.
      */
     public function index()
     {
         $filters = [
-            'employee_id' => $this->request->getGet('employee_id'),
-            'date_from'   => $this->request->getGet('date_from'),
-            'date_to'     => $this->request->getGet('date_to'),
-            'source_type' => $this->request->getGet('source_type'),
+            'employee_id'   => $this->request->getGet('employee_id'),
+            'department_id' => $this->request->getGet('department_id'),
+            'date_from'     => $this->request->getGet('date_from'),
+            'date_to'       => $this->request->getGet('date_to'),
+            'source_type'   => $this->request->getGet('source_type'),
         ];
         $page    = (int) ($this->request->getGet('page') ?? 1);
         $perPage = (int) ($this->request->getGet('per_page') ?? 25);

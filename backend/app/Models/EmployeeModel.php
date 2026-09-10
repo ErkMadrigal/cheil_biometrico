@@ -14,7 +14,7 @@ class EmployeeModel extends Model
     protected $allowedFields    = [
         'employee_number', 'zkteco_pin', 'first_name', 'paternal_last_name',
         'maternal_last_name', 'curp', 'rfc', 'photo_path', 'email', 'phone',
-        'position', 'department', 'hire_date', 'status',
+        'position', 'department', 'department_id', 'hire_date', 'status',
         // Home Office personal (la fija el empleado desde la app, ver MobileController::homeLocation())
         'home_lat', 'home_lng', 'home_radius_meters', 'home_location_locked', 'home_location_set_at',
         // Empleados que visitan clientes: pueden checar desde cualquier lugar (modulo "Movilidad")
@@ -35,6 +35,10 @@ class EmployeeModel extends Model
         'rfc'                 => 'permit_empty|max_length[13]|is_unique[employees.rfc,id,{id}]',
         'email'               => 'permit_empty|valid_email',
         'zkteco_pin'          => 'permit_empty|max_length[30]|is_unique[employees.zkteco_pin,id,{id}]',
+        // Obligatorio: el departamento ahora se elige del catalogo (departments), ya no
+        // es texto libre. Empleados viejos que aun no tengan uno asignado no se podran
+        // guardar hasta que RH les ponga uno (a proposito, ver migracion department_id).
+        'department_id'       => 'required|is_natural_no_zero',
         'home_lat'                => 'permit_empty|decimal',
         'home_lng'                => 'permit_empty|decimal',
         'home_radius_meters'      => 'permit_empty|is_natural_no_zero',
@@ -49,6 +53,7 @@ class EmployeeModel extends Model
         ],
         'curp' => ['is_unique' => 'Ya existe un empleado con esa CURP.'],
         'rfc'  => ['is_unique' => 'Ya existe un empleado con ese RFC.'],
+        'department_id' => ['required' => 'Selecciona el departamento del empleado.'],
     ];
 
     public function fullName(array $employee): string

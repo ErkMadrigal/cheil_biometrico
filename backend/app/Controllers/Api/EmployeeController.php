@@ -25,7 +25,10 @@ class EmployeeController extends BaseController
         $page    = (int) ($this->request->getGet('page') ?? 1);
         $perPage = (int) ($this->request->getGet('per_page') ?? 25);
 
-        $builder = $this->employees->orderBy('paternal_last_name', 'ASC');
+        $builder = $this->employees
+            ->select('employees.*, departments.name as department_name')
+            ->join('departments', 'departments.id = employees.department_id', 'left')
+            ->orderBy('paternal_last_name', 'ASC');
 
         if ($search) {
             $builder->groupStart()
@@ -57,7 +60,10 @@ class EmployeeController extends BaseController
      */
     public function show($id = null)
     {
-        $employee = $this->employees->find($id);
+        $employee = $this->employees
+            ->select('employees.*, departments.name as department_name')
+            ->join('departments', 'departments.id = employees.department_id', 'left')
+            ->find($id);
         if (!$employee) {
             return $this->fail('Empleado no encontrado.', 404);
         }

@@ -175,6 +175,39 @@ El login regresa un JWT que se manda como `Authorization: Bearer <token>` en cad
   mismo flujo de captura + segunda verificacion en vivo que la liga web, sin duplicar logica en el
   backend. Si el empleado ya tiene rostro, `enroll_token` viene `null` y la app pasa derecho a la
   checada normal.
+- **Departamento obligatorio (catalogo `departments`)**: dar de alta/editar un empleado ahora
+  exige `department_id` (FK a `departments`, ver `EmployeeModel`). El cliente alimenta el
+  catalogo el mismo desde el panel (`GET/POST/PUT/DELETE /api/v1/departments`,
+  `DepartmentController`), viene sembrado con los 14 departamentos iniciales (Retail Center,
+  Creative, Client Service, Account Service, Finance, Project Manager, Digital, FFM Center,
+  Human Resources, Mexico, Planning, General Services, New Business, Corporate Service). El
+  viejo campo de texto libre `employees.department` se deja (deprecado, solo historial); los
+  empleados que ya existian quedan con `department_id` en `NULL` hasta que RH se los asigne uno
+  por uno (no hay auto-match automatico contra el texto viejo). La baja de un departamento es
+  logica (`is_active=0`), nunca se borra, para no romper referencias historicas. La carga masiva
+  por XLSX (`EmployeeImportController`) resuelve la columna "departamento" (texto) contra este
+  catalogo por nombre; si no matchea ninguno, esa fila falla con un mensaje claro en vez de
+  crear departamentos nuevos por typos.
+- **Retardo**: la entrada (primer registro del dia) se espera a las 9:00am con 15 minutos de
+  tolerancia (constantes `EXPECTED_ENTRADA_TIME`/`LATE_TOLERANCE_MINUTES` en
+  `AttendanceRecordModel`) - una entrada despues de las 9:15:00am se marca `is_late=true`. Esto
+  es independiente de la ventana del "dia laboral" (5am-4:59am): solo importa la hora de reloj
+  de la entrada, no en que dia laboral cae. El flag `is_late` viene expuesto en
+  `AttendanceRecordModel::search()`/`dailySummary()`/`dayDetail()` y por lo tanto en
+  `/api/v1/attendance`, `/api/v1/reports/daily` (+ su export CSV) y `/api/v1/reports/payroll-export`
+  (columna extra `Late`, sin romper el formato de las primeras 6 columnas que espera nomina).
+- **Incidencias** (`incidents`/`incident_types`, `IncidentController`/`IncidentTypeController`):
+  registro **independiente**, NO ligado a una checada/attendance_record especifica (mucho
+  trafico, siniestro en carretera, clima, falla de transporte publico, etc). El empleado
+  afectado y la evidencia (foto/documento, se guarda en `writable/uploads/incidents/`, servida
+  via `FilesController`) son **opcionales**; el tipo (catalogo `incident_types`, alimentable
+  desde el mismo modulo de Incidencias en el panel) y la fecha son obligatorios. Soporta
+  filtros por empleado, departamento (via el empleado), tipo y rango de fechas
+  (`GET /api/v1/incidents`).
+- **Filtro/agrupacion por departamento en reportes y asistencia**: `GET /api/v1/attendance`,
+  `GET /api/v1/reports/daily` (+ export CSV) y `GET /api/v1/reports/payroll-export` aceptan
+  `department_id` ademas de `employee_id`, para ver/exportar la asistencia de un departamento
+  completo en vez de un empleado a la vez.
 
 ## 6. Variables de entorno (`.env`)
 
@@ -211,6 +244,9 @@ El login regresa un JWT que se manda como `Authorization: Bearer <token>` en cad
 | GET/POST/PUT/DELETE | `/api/v1/geo-zones` | Panel (administrar zonas geograficas permitidas) |
 | POST | `/api/v1/mobile/home-location` | Publico, sin JWT (empleado fija su Home Office: verificacion facial + GPS) |
 | POST | `/api/v1/employees/{id}/home-location/unlock` | Panel (desbloquea el Home Office de un empleado que se mudo) |
+| GET/POST/PUT/DELETE | `/api/v1/departments` | Panel (catalogo de departamentos, obligatorio en empleados) |
+| GET/POST/PUT/DELETE | `/api/v1/incident-types` | Panel (catalogo de tipos de incidencia) |
+| GET/POST/PUT/DELETE | `/api/v1/incidents` | Panel (registro de incidencias: mucho trafico, siniestro, etc) |
 | GET | `/api/v1/reports/day-detail/{employeeId}/{fecha}` | Panel (entrada/checkpoints/salida de un dia) |
 | GET | `/api/v1/attendance/today-map` | Panel (mapa en vivo: donde esta cada quien hoy) |
 | GET | `/api/v1/dashboard/summary` | Panel (dashboard) |

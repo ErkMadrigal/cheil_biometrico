@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import reportsApi from '../api/reports'
+import departmentsApi from '../api/departments'
 import { useToastStore } from '../stores/toast'
 import Icon from '../components/Icon.vue'
 import EmployeePicker from '../components/attendance/EmployeePicker.vue'
@@ -17,12 +18,22 @@ function daysAgoStr(n) {
 }
 
 const employee = ref(null)
+const departmentFilter = ref('')
 const dateFrom = ref(daysAgoStr(29))
 const dateTo = ref(todayStr())
 
 const rows = ref([])
 const loading = ref(true)
 const exporting = ref(false)
+
+const departments = ref([])
+async function loadDepartments() {
+  try {
+    departments.value = (await departmentsApi.list()).filter((d) => Number(d.is_active) === 1)
+  } catch (e) {
+    // silencioso: el filtro de departamento simplemente queda vacio
+  }
+}
 
 // Formatea EXACTAMENTE igual que el backend (ReportController::payrollExport), para
 // que la vista previa en pantalla sea identica a lo que va a traer el .xlsx.
@@ -42,6 +53,7 @@ function compactTime(dt) {
 function currentFilters() {
   return {
     employee_id: employee.value?.id,
+    department_id: departmentFilter.value || undefined,
     date_from: dateFrom.value,
     date_to: dateTo.value,
   }
@@ -60,7 +72,7 @@ async function load() {
   }
 }
 
-watch([employee, dateFrom, dateTo], load)
+watch([employee, departmentFilter, dateFrom, dateTo], load)
 
 async function exportXlsx() {
   exporting.value = true
@@ -73,7 +85,10 @@ async function exportXlsx() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  loadDepartments()
+  load()
+})
 </script>
 
 <template>
@@ -97,8 +112,18 @@ onMounted(load)
     </div>
 
     <!-- Filtros -->
-    <div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-4">
       <EmployeePicker v-model="employee" placeholder="Todos los empleados" />
+      <div class="relative self-start">
+        <select
+          v-model="departmentFilter"
+          class="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          <option value="">Todos los departamentos</option>
+          <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
+        <Icon name="chevronDown" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      </div>
       <div>
         <label class="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Rango: inicio</label>
         <input
@@ -129,17 +154,19 @@ onMounted(load)
               <th class="px-5 py-3">Year&amp;Date</th>
               <th class="px-5 py-3">Time In</th>
               <th class="px-5 py-3">Time Out</th>
+              <th class="px-5 py-3">Department</th>
+              <th class="px-5 py-3">Late</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 font-mono text-xs dark:divide-slate-800">
             <tr v-if="loading" v-for="i in 6" :key="'sk-' + i">
-              <td class="px-5 py-4" colspan="6">
+              <td class="px-5 py-4" colspan="8">
                 <div class="h-8 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
               </td>
             </tr>
 
             <tr v-else-if="!rows.length">
-              <td colspan="6" class="px-5 py-14 text-center font-sans text-sm text-slate-400 dark:text-slate-500">
+              <td colspan="8" class="px-5 py-14 text-center font-sans text-sm text-slate-400 dark:text-slate-500">
                 <Icon name="documentText" class="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" />
                 No hay registros para este filtro/rango de fechas.
               </td>
@@ -157,6 +184,10 @@ onMounted(load)
               <td class="px-5 py-2.5 text-slate-700 dark:text-slate-300">{{ calendarDateOfDatetime(row.salida) }}</td>
               <td class="px-5 py-2.5 text-slate-700 dark:text-slate-300">{{ compactTime(row.entrada) }}</td>
               <td class="px-5 py-2.5 text-slate-700 dark:text-slate-300">{{ compactTime(row.salida) }}</td>
+              <td class="px-5 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{{ row.department_name || '—' }}</td>
+              <td class="px-5 py-2.5" :class="row.is_late ? 'font-semibold text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'">
+                {{ row.is_late ? 'Si' : 'No' }}
+              </td>
             </tr>
           </tbody>
         </table>

@@ -78,6 +78,18 @@ const routes = [
         component: () => import('../views/MobilityView.vue'),
         meta: { title: 'Movilidad' },
       },
+      {
+        path: 'departamentos',
+        name: 'departamentos',
+        component: () => import('../views/DepartmentsView.vue'),
+        meta: { title: 'Departamentos' },
+      },
+      {
+        path: 'incidencias',
+        name: 'incidencias',
+        component: () => import('../views/IncidentsView.vue'),
+        meta: { title: 'Incidencias' },
+      },
     ],
   },
 ]

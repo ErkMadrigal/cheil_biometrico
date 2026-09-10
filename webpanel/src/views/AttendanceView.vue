@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import attendanceApi from '../api/attendance'
+import departmentsApi from '../api/departments'
 import { useToastStore } from '../stores/toast'
 import { sourceBadge, SOURCE_OPTIONS } from '../utils/badges'
 import { resolveMediaUrl } from '../utils/media'
@@ -28,9 +29,19 @@ const perPage = ref(15)
 const loading = ref(true)
 
 const employee = ref(null)
+const departmentFilter = ref('')
 const dateFrom = ref(daysAgoStr(6))
 const dateTo = ref(todayStr())
 const sourceType = ref('')
+
+const departments = ref([])
+async function loadDepartments() {
+  try {
+    departments.value = (await departmentsApi.list()).filter((d) => Number(d.is_active) === 1)
+  } catch (e) {
+    // silencioso: el filtro de departamento simplemente queda vacio
+  }
+}
 
 const drawerOpen = ref(false)
 const drawerEmployeeId = ref(null)
@@ -62,6 +73,7 @@ async function load() {
   try {
     const data = await attendanceApi.list({
       employee_id: employee.value?.id,
+      department_id: departmentFilter.value || undefined,
       date_from: dateFrom.value || undefined,
       date_to: dateTo.value || undefined,
       source_type: sourceType.value || undefined,
@@ -77,7 +89,7 @@ async function load() {
   }
 }
 
-watch([employee, dateFrom, dateTo, sourceType], () => {
+watch([employee, departmentFilter, dateFrom, dateTo, sourceType], () => {
   page.value = 1
   load()
 })
@@ -95,7 +107,10 @@ function openDay(row) {
   drawerOpen.value = true
 }
 
-onMounted(load)
+onMounted(() => {
+  loadDepartments()
+  load()
+})
 </script>
 
 <template>
@@ -108,24 +123,37 @@ onMounted(load)
     </div>
 
     <!-- Filtros -->
-    <div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-5">
       <EmployeePicker v-model="employee" placeholder="Buscar empleado..." />
+      <div class="relative self-start">
+        <select
+          v-model="departmentFilter"
+          class="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          <option value="">Todos los departamentos</option>
+          <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
+        </select>
+        <Icon name="chevronDown" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      </div>
       <input
         v-model="dateFrom"
         type="date"
-        class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
       />
       <input
         v-model="dateTo"
         type="date"
-        class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
       />
-      <select
-        v-model="sourceType"
-        class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-      >
-        <option v-for="opt in SOURCE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-      </select>
+      <div class="relative self-start">
+        <select
+          v-model="sourceType"
+          class="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        >
+          <option v-for="opt in SOURCE_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <Icon name="chevronDown" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      </div>
     </div>
 
     <!-- Tabla -->
@@ -183,7 +211,15 @@ onMounted(load)
                   <Icon name="arrowUpRight" class="h-3 w-3" />
                 </a>
               </td>
-              <td class="px-5 py-3 text-slate-600 dark:text-slate-300">{{ dateTimeLabel(row.recorded_at) }}</td>
+              <td class="px-5 py-3 text-slate-600 dark:text-slate-300">
+                <div class="flex items-center gap-2">
+                  {{ dateTimeLabel(row.recorded_at) }}
+                  <Badge v-if="row.is_late" color="red">
+                    <Icon name="alertTriangle" class="h-3 w-3" />
+                    Retardo
+                  </Badge>
+                </div>
+              </td>
               <td class="px-5 py-3 text-right">
                 <button
                   type="button"
