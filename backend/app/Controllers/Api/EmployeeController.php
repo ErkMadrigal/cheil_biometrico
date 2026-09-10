@@ -200,6 +200,93 @@ class EmployeeController extends BaseController
     }
 
     /**
+     * POST /api/v1/employees/photos/bulk-import  (multipart, campo "photos[]", varios archivos)
+     * Carga masiva de fotos de perfil: en vez de subir una por una desde el
+     * formulario de cada empleado, RH arrastra un monton de fotos ya nombradas
+     * "{numero_empleado}.jpg" (ej. "60116225.jpg") y aqui se hace el match
+     * automatico por numero de empleado. Cada archivo se procesa independiente
+     * (uno con nombre invalido o numero inexistente no tumba a los demas).
+     *
+     * OJO: esto solo pone la fotito de perfil que se ve en el panel
+     * (employees.photo_path) -- NO es lo mismo que el enrolamiento facial para
+     * checar (ese usa un descriptor de 128 numeros calculado por face-api.js
+     * desde la CAMARA en vivo, ver EmployeeController::saveFace()). Una foto
+     * subida aqui no sirve para que el checador reconozca al empleado.
+     */
+    public function bulkImportPhotos()
+    {
+        $files = $this->request->getFileMultiple('photos');
+        if (!$files) {
+            return $this->fail('Sube uno o mas archivos en el campo "photos[]".', 422);
+        }
+
+        $results = [];
+        $updated = 0;
+        $failed  = 0;
+
+        foreach ($files as $file) {
+            // El nombre ORIGINAL del archivo (no el temporal) es el que trae el
+            // numero de empleado, ej. "60116225.jpg" -> numero_empleado = "60116225".
+            $originalName   = $file->getClientName();
+            $employeeNumber = trim(pathinfo($originalName, PATHINFO_FILENAME));
+
+            if (!$file->isValid()) {
+                $failed++;
+                $results[] = ['file' => $originalName, 'status' => 'error', 'message' => $file->getErrorString()];
+                continue;
+            }
+
+            $ext = strtolower($file->getClientExtension() ?: pathinfo($originalName, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+                $failed++;
+                $results[] = ['file' => $originalName, 'status' => 'error', 'message' => 'Extension no soportada (usa .jpg o .png).'];
+                continue;
+            }
+
+            if ($employeeNumber === '') {
+                $failed++;
+                $results[] = ['file' => $originalName, 'status' => 'error', 'message' => 'El nombre del archivo no trae un numero de empleado (esperado: "numero.jpg").'];
+                continue;
+            }
+
+            $employee = $this->employees->where('employee_number', $employeeNumber)->first();
+            if (!$employee) {
+                $failed++;
+                $results[] = ['file' => $originalName, 'employee_number' => $employeeNumber, 'status' => 'error', 'message' => 'No existe ningun empleado con ese numero.'];
+                continue;
+            }
+
+            $oldPath = $employee['photo_path'] ?? null;
+
+            $newName = $file->getRandomName();
+            $file->move(WRITEPATH . 'uploads/employees', $newName);
+            $this->employees->skipValidation(true)->update($employee['id'], ['photo_path' => 'uploads/employees/' . $newName]);
+
+            // Limpia la foto anterior para no ir acumulando archivos huerfanos en disco.
+            if ($oldPath) {
+                $oldFullPath = WRITEPATH . str_replace(['..', "\0"], '', $oldPath);
+                if (is_file($oldFullPath)) {
+                    @unlink($oldFullPath);
+                }
+            }
+
+            $updated++;
+            $results[] = [
+                'file' => $originalName, 'employee_number' => $employeeNumber,
+                'employee_name' => $this->employees->fullName($employee),
+                'status' => 'updated', 'message' => 'Foto actualizada.',
+            ];
+        }
+
+        return $this->ok([
+            'updated' => $updated,
+            'failed'  => $failed,
+            'total'   => count($results),
+            'details' => $results,
+        ], 'Carga de fotos procesada.');
+    }
+
+    /**
      * POST /api/v1/employees/{id}/home-location/unlock  (JWT: admin/supervisor)
      * El empleado se mudo: se desbloquea su Home Office para que la vuelva a capturar
      * el mismo desde la app (con verificacion facial). No borra la ubicacion anterior,

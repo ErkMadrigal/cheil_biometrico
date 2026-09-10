@@ -82,7 +82,12 @@ class EmployeeImportController extends BaseController
             return $this->fail('No se pudo leer el archivo. Verifica que sea un Excel valido.', 422);
         }
 
-        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+        // formatData=false: queremos el valor CRUDO de cada celda, no el texto formateado.
+        // Con formatData=true, una celda de fecha con formato "mm-dd-yy" regresa el STRING
+        // "08-22-11" en vez del numero de serie de Excel -- ese string es ambiguo (dia/mes
+        // invertidos segun locale) y strtotime() lo puede interpretar mal. Con el numero de
+        // serie crudo, normalizeDate() lo convierte sin ambiguedad via ExcelDate.
+        $rows = $spreadsheet->getActiveSheet()->toArray(null, true, false, false);
         if (count($rows) < 2) {
             return $this->fail('El archivo no tiene filas de datos (solo encabezado o esta vacio).', 422);
         }
@@ -217,6 +222,9 @@ class EmployeeImportController extends BaseController
     {
         if ($value === null || $value === '') {
             return null;
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
         }
         if (is_numeric($value)) {
             try {

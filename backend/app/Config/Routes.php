@@ -83,6 +83,9 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api', 'filter' => 'cor
         $routes->get('employees/import/template', 'EmployeeImportController::template');
         $routes->post('employees/import', 'EmployeeImportController::import');
 
+        // Carga masiva de fotos de perfil (multiples archivos "numero_empleado.jpg")
+        $routes->post('employees/photos/bulk-import', 'EmployeeController::bulkImportPhotos');
+
         // Dispositivos ZKTeco (panel: admin)
         $routes->get('devices', 'DeviceController::index');
         $routes->get('devices/(:num)', 'DeviceController::show/$1');

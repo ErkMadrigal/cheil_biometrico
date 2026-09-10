@@ -157,7 +157,17 @@ El login regresa un JWT que se manda como `Authorization: Bearer <token>` en cad
   **upsert por `employee_number`**: si ya existe, actualiza sus datos; si no, lo da de alta. Cada fila
   se procesa por separado (un renglon con datos invalidos no tumba el resto de la carga) y se regresa
   el detalle fila por fila (`created`/`updated`/`error`). Usa `phpoffice/phpspreadsheet` (ver
-  `EmployeeImportController`).
+  `EmployeeImportController`). Las fechas se leen del **valor crudo** de la celda (no del texto
+  formateado) para no depender de si Excel formatea como `mm-dd-yy`/`dd-mm-yy`/etc. -- evita fechas
+  invertidas.
+- **Carga masiva de fotos de perfil**: `POST /api/v1/employees/photos/bulk-import` (panel, JWT,
+  multipart con varios archivos en el campo `photos[]`) permite arrastrar de un jalon todas las fotos
+  ya nombradas `{numero_empleado}.jpg`/`.png`. El backend usa el NOMBRE del archivo (sin extension)
+  para encontrar al empleado y actualiza `photo_path`, borrando la foto anterior del disco. Cada
+  archivo se procesa por separado y se regresa detalle por archivo. Ver
+  `EmployeeController::bulkImportPhotos()`. **Importante:** esto solo pone la foto de perfil que se ve
+  en el panel -- NO enrola el rostro para checar (eso sigue siendo `POST /employees/{id}/face`, que
+  requiere el descriptor de 128 numeros calculado en vivo por face-api.js desde la camara).
 - **Auto-enrolamiento por liga temporal (72h, un solo uso)**: en vez de darle acceso al panel a cada
   empleado (o que tengan que pedirle a TI que se los enrole), un admin genera una liga desde
   Empleados (`POST /api/v1/employees/{id}/enroll-token`, JWT) y se la manda por WhatsApp/correo. El
@@ -231,6 +241,7 @@ El login regresa un JWT que se manda como `Authorization: Bearer <token>` en cad
 | POST | `/api/v1/employees/{id}/enroll-token` | Panel (genera liga de 72h de auto-enrolamiento) |
 | GET | `/api/v1/employees/import/template` | Panel (descarga plantilla .xlsx) |
 | POST | `/api/v1/employees/import` | Panel (carga masiva de empleados, upsert por numero) |
+| POST | `/api/v1/employees/photos/bulk-import` | Panel (carga masiva de fotos, match por nombre de archivo) |
 | GET | `/api/v1/enroll/{token}` | Publico, sin JWT (valida la liga y regresa datos del empleado) |
 | POST | `/api/v1/enroll/{token}/save` | Publico, sin JWT (guarda la primera captura de rostro) |
 | POST | `/api/v1/enroll/{token}/verify` | Publico, sin JWT (segunda captura: verifica y marca la liga usada) |
