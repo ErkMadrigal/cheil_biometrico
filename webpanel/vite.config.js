@@ -3,7 +3,13 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // OJO: "base" SI afecta al dev server, no solo al build (a diferencia de lo que
+  // dice un comentario viejo por ahi). Por eso va condicionado a "command": solo en
+  // `npm run build` usamos /panel/ (porque el compilado va a vivir en htdocs/panel/,
+  // no en la raiz del dominio) -- en `npm run dev` se queda en "/" como siempre, para
+  // no romper el tunel de Cloudflare (panel.centinal.org -> localhost:5173 raiz).
+  base: command === 'build' ? '/panel/' : '/',
   plugins: [vue(), tailwindcss()],
   server: {
     port: 5173,
@@ -29,4 +35,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
