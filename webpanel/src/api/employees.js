@@ -36,13 +36,30 @@ export default {
   importXlsx(file) {
     const form = new FormData()
     form.append('file', file)
+    // Timeout mas largo que el default (15s) del cliente: cada fila hace una consulta
+    // a la BD y, si esta en un servidor remoto (Hostgator, no local), 197+ filas pueden
+    // tardar mas de 15s en total aunque cada consulta individual sea rapida.
     return client.post('/employees/import', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
     }).then((r) => r.data.data)
   },
   // Descarga la plantilla .xlsx (blob) para que RH la llene y la vuelva a subir.
   downloadTemplate() {
     return client.get('/employees/import/template', { responseType: 'blob' }).then((r) => r.data)
+  },
+  // Carga masiva de fotos de perfil: varios archivos nombrados "numero_empleado.jpg",
+  // el backend hace el match por nombre de archivo (ver EmployeeController::bulkImportPhotos).
+  importPhotos(files) {
+    const form = new FormData()
+    for (const file of files) {
+      form.append('photos[]', file, file.name)
+    }
+    // Mismo motivo que importXlsx: varios archivos + BD remota puede tardar mas de 15s.
+    return client.post('/employees/photos/bulk-import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    }).then((r) => r.data.data)
   },
   // Genera una liga temporal de 72h para que el empleado se auto-enrole el rostro
   // sin necesitar acceso al panel (util cuando pedirle a TI es "castroso").

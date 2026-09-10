@@ -79,6 +79,14 @@ class EmployeeImportController extends BaseController
         try {
             $spreadsheet = IOFactory::load($file->getTempName());
         } catch (\Throwable $e) {
+            // TEMPORAL: guarda el error real en writable/logs para diagnosticar por que
+            // truena en Knox (el mensaje al usuario se queda generico a proposito).
+            log_message('error', 'EmployeeImportController::import - IOFactory::load fallo: {msg} | tempName={tmp} | clientName={name} | size={size}', [
+                'msg'  => $e->getMessage() . ' :: ' . $e->getTraceAsString(),
+                'tmp'  => $file->getTempName(),
+                'name' => $file->getClientName(),
+                'size' => $file->getSize(),
+            ]);
             return $this->fail('No se pudo leer el archivo. Verifica que sea un Excel valido.', 422);
         }
 
